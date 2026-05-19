@@ -10,6 +10,7 @@
  *   - list_endpoints           : paginated catalogue browse with optional filters
  *   - search_endpoints         : text search over URL / source / category
  *   - get_endpoint_details     : single endpoint detail
+ *   - get_active_endpoints     : endpoints seen within last N days (1-90)
  *
  * Auth
  *   Set SMARTFLOW_MAPPER_API_KEY in the environment. Free-tier keys are
@@ -109,6 +110,14 @@ const TOOL_DEFINITIONS = [
             "(accepts[] array with scheme + network + payTo + maxAmountRequired); " +
             "0 = HTTP 402 returned but body is non-compliant.",
         },
+        volume_gt: {
+          type: "number",
+          minimum: 0,
+          description:
+            "Filter by on_chain_volume_usdc > X (USDC float). Returns only " +
+            "endpoints whose observed on-chain USDC payment volume strictly " +
+            "exceeds the threshold. Useful for surfacing high-traffic endpoints.",
+        },
       },
       additionalProperties: false,
     },
@@ -162,12 +171,43 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_active_endpoints",
+    description:
+      "Return the cohort of endpoints seen within the last N days, ordered " +
+      "by last_seen DESC. Useful for tracking which endpoints in the " +
+      "catalogue are currently alive vs. stale. The catalogue is re-probed " +
+      "regularly; last_seen is the timestamp of the most recent successful " +
+      "probe. Window is 1-90 days (default 7).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        window_days: {
+          type: "integer",
+          minimum: 1,
+          maximum: 90,
+          default: 7,
+          description:
+            "Look-back window in days (1-90, default 7). Endpoints with " +
+            "last_seen >= now - window_days are returned.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 500,
+          default: 100,
+          description: "Maximum endpoints to return (1-500, default 100).",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 const server = new Server(
   {
     name: "@tomsmart-ai/mapper-mcp",
-    version: "0.2.0",
+    version: "0.3.0",
   },
   {
     capabilities: {
@@ -197,7 +237,7 @@ async function callMapperApi(path: string): Promise<unknown> {
     headers: {
       "X-API-Key": API_KEY,
       Accept: "application/json",
-      "User-Agent": "@tomsmart-ai/mapper-mcp/0.1.0",
+      "User-Agent": "@tomsmart-ai/mapper-mcp/0.3.0",
     },
   });
   const text = await res.text();
@@ -258,6 +298,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const source = args?.source as string | undefined;
       const status = args?.status as number | undefined;
       const specValid = args?.spec_valid as number | undefined;
+      const volumeGt = args?.volume_gt as number | undefined;
       const qs = new URLSearchParams();
       qs.set("page", String(page));
       qs.set("limit", String(limit));
@@ -265,6 +306,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       if (source) qs.set("source", source);
       if (status !== undefined) qs.set("status", String(status));
       if (specValid !== undefined) qs.set("spec_valid", String(specValid));
+      if (volumeGt !== undefined) qs.set("volume_gt", String(volumeGt));
       const data = await callMapperApi(`/v1/endpoints?${qs.toString()}`);
       return {
         content: [
@@ -300,6 +342,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       const encoded = urlSafeBase64(url);
       const data = await callMapperApi(`/v1/endpoints/${encoded}`);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_active_endpoints": {
+      const windowDays = (args?.window_days as number | undefined) ?? 7;
+      const limit = (args?.limit as number | undefined) ?? 100;
+      if (windowDays < 1 || windowDays > 90) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_active_endpoints: window_days must be between 1 and 90."
+        );
+      }
+      if (limit < 1 || limit > 500) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_active_endpoints: limit must be between 1 and 500."
+        );
+      }
+      const data = await callMapperApi(
+        `/v1/endpoints/active?window_days=${windowDays}&limit=${limit}`
+      );
       return {
         content: [
           { type: "text", text: JSON.stringify(data, null, 2) },

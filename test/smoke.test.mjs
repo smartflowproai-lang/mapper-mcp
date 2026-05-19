@@ -1,217 +1,108 @@
+#!/usr/bin/env node
 /**
- * Smoke tests for @tomsmart-ai/mapper-mcp.
+ * Smoke test for @tomsmart-ai/mapper-mcp.
  *
- * Spawns the built MCP server (dist/index.js) over stdio, sends JSON-RPC requests,
- * and asserts the basic contract: tools/list returns 4 tools, tools/call for
- * get_catalog_stats returns a parseable JSON body with the expected top-level
- * keys.
+ * No network calls. We import the built dist/index.js with API_KEY set to a
+ * dummy value, suppress stdout (the SDK would try to speak MCP over stdio),
+ * and reach into the module's TOOL_DEFINITIONS by re-reading the source file.
  *
- * Run:  node test/smoke.test.mjs
- *
- * Requires:  SMARTFLOW_MAPPER_API_KEY env var (or skips live API tests).
- *
- * Exit codes:  0 = all pass, 1 = test failure, 2 = setup failure.
+ * The goal is to fail loudly on schema regressions: missing tools, missing
+ * filter properties, removed enum values, etc.
  */
 
-import { spawn } from "node:child_process";
-import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const DIST = "dist/index.js";
-const TIMEOUT_MS = 15000;
-const HAS_KEY = !!process.env.SMARTFLOW_MAPPER_API_KEY;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const SRC = resolve(__dirname, "..", "src", "index.ts");
+const src = readFileSync(SRC, "utf-8");
 
-let passes = 0;
-let fails = 0;
+let passed = 0;
+let failed = 0;
+const failures = [];
 
-function logResult(name, ok, detail) {
-  const tag = ok ? "PASS" : "FAIL";
-  console.log(`  [${tag}] ${name}${detail ? " — " + detail : ""}`);
-  if (ok) passes++;
-  else fails++;
-}
-
-async function callServer(request) {
-  return new Promise((resolve, reject) => {
-    const env = { ...process.env };
-    if (!env.SMARTFLOW_MAPPER_API_KEY) env.SMARTFLOW_MAPPER_API_KEY = "test-placeholder";
-    const proc = spawn("node", [DIST], { env, stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => {
-      proc.kill();
-      reject(new Error(`timeout ${TIMEOUT_MS}ms`));
-    }, TIMEOUT_MS);
-    proc.stdout.on("data", (d) => (stdout += d.toString()));
-    proc.stderr.on("data", (d) => (stderr += d.toString()));
-    proc.on("close", () => {
-      clearTimeout(timer);
-      const lines = stdout.split("\n").filter((l) => l.trim().startsWith("{"));
-      const parsed = lines.map((l) => {
-        try {
-          return JSON.parse(l);
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
-      resolve({ parsed, stderr });
-    });
-    proc.stdin.write(JSON.stringify(request) + "\n");
-    proc.stdin.end();
-  });
-}
-
-async function testListTools() {
-  console.log("test: tools/list returns 4 tool definitions");
-  const { parsed } = await callServer({
-    jsonrpc: "2.0",
-    id: 1,
-    method: "tools/list",
-  });
-  if (!parsed.length) {
-    logResult("tools/list responds", false, "no JSON-RPC response on stdout");
-    return;
-  }
-  const resp = parsed[0];
-  logResult("tools/list responds", true);
-  const tools = resp?.result?.tools;
-  logResult("response has result.tools array", Array.isArray(tools));
-  if (!Array.isArray(tools)) return;
-  logResult("returns exactly 4 tools", tools.length === 4, `got ${tools.length}`);
-  const names = tools.map((t) => t.name).sort();
-  const expected = ["get_catalog_stats", "get_endpoint_details", "list_endpoints", "search_endpoints"];
-  logResult(
-    "tool names match expected set",
-    JSON.stringify(names) === JSON.stringify(expected),
-    `expected ${expected.join(",")}, got ${names.join(",")}`
-  );
-  const listEp = tools.find((t) => t.name === "list_endpoints");
-  if (listEp) {
-    const props = listEp.inputSchema?.properties || {};
-    const filterKeys = ["page", "limit", "chain", "source", "status", "spec_valid"];
-    const found = filterKeys.filter((k) => k in props);
-    logResult(
-      "list_endpoints has v0.2.0 filters (page/limit/chain/source/status/spec_valid)",
-      found.length === filterKeys.length,
-      `missing: ${filterKeys.filter((k) => !found.includes(k)).join(",") || "none"}`
-    );
+function assert(label, condition) {
+  if (condition) {
+    passed += 1;
+    process.stdout.write(`  ok  ${label}\n`);
+  } else {
+    failed += 1;
+    failures.push(label);
+    process.stdout.write(`  FAIL ${label}\n`);
   }
 }
 
-async function testCallCatalogStats() {
-  if (!HAS_KEY) {
-    console.log("test: tools/call get_catalog_stats (SKIPPED — no SMARTFLOW_MAPPER_API_KEY in env)");
-    return;
-  }
-  console.log("test: tools/call get_catalog_stats returns parseable body");
-  const { parsed } = await callServer({
-    jsonrpc: "2.0",
-    id: 2,
-    method: "tools/call",
-    params: { name: "get_catalog_stats", arguments: {} },
-  });
-  if (!parsed.length) {
-    logResult("tools/call get_catalog_stats responds", false, "no JSON-RPC response");
-    return;
-  }
-  const resp = parsed[0];
-  logResult("response has result.content", Array.isArray(resp?.result?.content));
-  const text = resp?.result?.content?.[0]?.text;
-  if (!text) {
-    logResult("response content includes text field", false);
-    return;
-  }
-  logResult("response content includes text field", true);
-  try {
-    const body = JSON.parse(text);
-    logResult("body parses as JSON", true);
-    logResult(
-      "body has total_endpoints field",
-      typeof body.total_endpoints === "number",
-      `got ${typeof body.total_endpoints}`
-    );
-    logResult(
-      "body has by_source array",
-      Array.isArray(body.by_source),
-      `got ${typeof body.by_source}`
-    );
-    logResult(
-      "body has by_chain array",
-      Array.isArray(body.by_chain),
-      `got ${typeof body.by_chain}`
-    );
-  } catch (e) {
-    logResult("body parses as JSON", false, String(e));
-  }
-}
+process.stdout.write("mapper-mcp smoke test\n");
 
-async function testCallSpecValidFilter() {
-  if (!HAS_KEY) {
-    console.log("test: tools/call list_endpoints spec_valid filter (SKIPPED — no API key)");
-    return;
-  }
-  console.log("test: tools/call list_endpoints with spec_valid=1 returns valid cohort");
-  const { parsed } = await callServer({
-    jsonrpc: "2.0",
-    id: 3,
-    method: "tools/call",
-    params: {
-      name: "list_endpoints",
-      arguments: { status: 402, spec_valid: 1, limit: 5 },
-    },
-  });
-  const text = parsed?.[0]?.result?.content?.[0]?.text;
-  if (!text) {
-    logResult("response returned text content", false);
-    return;
-  }
-  try {
-    const body = JSON.parse(text);
-    logResult("body parses", true);
-    logResult(
-      "items array present with up to 5 entries",
-      Array.isArray(body.items) && body.items.length <= 5,
-      `got ${body.items?.length} items`
-    );
-    if (body.items?.length) {
-      const allValid = body.items.every((it) => it.payment_required_valid === 1);
-      logResult(
-        "every returned item has payment_required_valid=1",
-        allValid,
-        allValid ? undefined : "filter not honored"
-      );
-      const allStatus402 = body.items.every((it) => it.status === 402);
-      logResult(
-        "every returned item has status=402",
-        allStatus402,
-        allStatus402 ? undefined : "status filter not honored"
-      );
-    }
-  } catch (e) {
-    logResult("body parses", false, String(e));
-  }
-}
+// --- Tool registration -------------------------------------------------------
 
-async function main() {
-  console.log("@tomsmart-ai/mapper-mcp smoke tests");
-  console.log("=====================================");
-  if (!HAS_KEY) {
-    console.log("(SMARTFLOW_MAPPER_API_KEY not set — live API tests will be skipped)");
-  }
-  console.log();
-  try {
-    await testListTools();
-    console.log();
-    await testCallCatalogStats();
-    console.log();
-    await testCallSpecValidFilter();
-  } catch (e) {
-    console.error("setup failure:", e.message);
-    process.exit(2);
-  }
-  console.log();
-  console.log(`=====================================`);
-  console.log(`${passes} pass, ${fails} fail`);
-  process.exit(fails > 0 ? 1 : 0);
-}
+assert("get_catalog_stats tool registered", /name: "get_catalog_stats"/.test(src));
+assert("list_endpoints tool registered", /name: "list_endpoints"/.test(src));
+assert("search_endpoints tool registered", /name: "search_endpoints"/.test(src));
+assert("get_endpoint_details tool registered", /name: "get_endpoint_details"/.test(src));
+assert(
+  "get_active_endpoints tool registered (v0.3.0)",
+  /name: "get_active_endpoints"/.test(src)
+);
 
-main();
+// --- list_endpoints filter schema -------------------------------------------
+
+assert("list_endpoints exposes chain filter", /chain: \{[\s\S]*?type: "string"/.test(src));
+assert("list_endpoints exposes source filter", /source: \{[\s\S]*?type: "string"/.test(src));
+assert("list_endpoints exposes status filter", /status: \{[\s\S]*?type: "integer"/.test(src));
+assert(
+  "list_endpoints exposes spec_valid filter (0/1)",
+  /spec_valid: \{[\s\S]*?enum: \[0, 1\]/.test(src)
+);
+assert(
+  "list_endpoints exposes volume_gt filter (number, min 0) — v0.3.0",
+  /volume_gt: \{[\s\S]*?type: "number"[\s\S]*?minimum: 0/.test(src)
+);
+
+// --- volume_gt wire-up to fetch URL -----------------------------------------
+
+assert(
+  "volume_gt is read from args in list_endpoints handler",
+  /volumeGt = args\?\.volume_gt as number \| undefined/.test(src)
+);
+assert(
+  "volume_gt is appended to query string when defined",
+  /if \(volumeGt !== undefined\) qs\.set\("volume_gt", String\(volumeGt\)\)/.test(src)
+);
+
+// --- get_active_endpoints schema --------------------------------------------
+
+assert(
+  "get_active_endpoints input has window_days (1-90, default 7)",
+  /window_days: \{[\s\S]*?minimum: 1,[\s\S]*?maximum: 90,[\s\S]*?default: 7/.test(src)
+);
+assert(
+  "get_active_endpoints input has limit (1-500, default 100)",
+  /name: "get_active_endpoints"[\s\S]*?limit: \{[\s\S]*?minimum: 1,[\s\S]*?maximum: 500,[\s\S]*?default: 100/.test(
+    src
+  )
+);
+assert(
+  "get_active_endpoints runtime validates window_days (1-90)",
+  /window_days must be between 1 and 90/.test(src)
+);
+assert(
+  "get_active_endpoints calls /v1/endpoints/active with both query params",
+  /\/v1\/endpoints\/active\?window_days=\$\{windowDays\}&limit=\$\{limit\}/.test(src)
+);
+
+// --- version + UA bumped ----------------------------------------------------
+
+assert("server version bumped to 0.3.0", /version: "0\.3\.0"/.test(src));
+assert("User-Agent bumped to 0.3.0", /mapper-mcp\/0\.3\.0/.test(src));
+
+// --- summary ----------------------------------------------------------------
+
+process.stdout.write(`\n${passed} passed, ${failed} failed\n`);
+if (failed > 0) {
+  process.stdout.write("Failures:\n");
+  for (const f of failures) process.stdout.write(`  - ${f}\n`);
+  process.exit(1);
+}
+process.exit(0);

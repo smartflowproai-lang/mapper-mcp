@@ -2,7 +2,12 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains four tools for discovering and inspecting paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains five tools for discovering and inspecting paid x402 endpoints on the public internet.
+
+## What's new in v0.3.0
+
+- **`list_endpoints` gains a `volume_gt` filter** — surface high-traffic endpoints by minimum observed on-chain USDC payment volume.
+- **New tool: `get_active_endpoints`** — return the cohort of endpoints seen within the last N days (1–90, default 7), ordered by `last_seen` descending. Use it to track which endpoints are currently alive vs. stale without scrolling the full catalogue.
 
 ---
 
@@ -55,26 +60,19 @@ No arguments. Single call returns the catalogue snapshot as JSON.
 
 ### `list_endpoints`
 
-Paginated browse over the catalogue with optional filters. Returns endpoint records with URL, registry source, declared chain/network, last HTTP probe status, first/last seen timestamps, the strict x402 v2 spec-validity flag (`payment_required_valid`), and on-chain payment metadata where available.
+Paginated browse over the catalogue in registry order. Returns endpoint records with URL, registry source, declared chain/network, last HTTP probe status, first/last seen timestamps, and on-chain payment metadata where available.
 
 | Arg | Type | Default | Notes |
 |---|---|---|---|
 | `page` | integer | 1 | 1-indexed |
 | `limit` | integer | 25 | 1–100 |
-| `chain` | string | — | Filter by declared chain/network — accepts both formats. Examples: `Base`, `eip155:8453`, `solana`, `Lightning`, `Tempo`, `Base Sepolia`. |
-| `source` | string | — | Filter by registry source LIKE-match. Examples: `bazaar`, `402index`, `x402scan`, `apiosk-catalog`, `well-known-discovery`. |
-| `status` | integer | — | Filter by last HTTP probe status code. Common: `402` (paid), `200` (alive landing), `404` (dead), `0` (probe timeout/error). |
-| `spec_valid` | integer (0/1) | — | Filter by strict x402 v2 schema validity flag. `1` = body validates (accepts[] array with scheme + network + payTo + maxAmountRequired); `0` = HTTP 402 returned but body is non-compliant. |
+| `chain` | string | — | Filter by declared chain or network (e.g. `eip155:8453`, `Base`, `solana`). |
+| `source` | string | — | Substring match against registry source (e.g. `bazaar`, `x402scan`). |
+| `status` | integer | — | Last HTTP probe status (e.g. `402`, `200`, `404`). |
+| `spec_valid` | integer (0/1) | — | Strict x402 v2 schema validity flag. |
+| `volume_gt` | number | — | Endpoints with `on_chain_volume_usdc` strictly above the threshold (USDC float). |
 
-**Cohort-signal example**:
-
-```js
-list_endpoints({ status: 402, spec_valid: 1, limit: 10 })
-```
-
-Returns the 11,505 endpoints (88% of the 13,064 status=402 cohort as of the 2026-05-19 schema sweep) that emit a strict v2 schema body. The other 1,522 (12%) return HTTP 402 but the body is non-compliant — generic paywall, buggy implementation, or custom non-x402 protocol.
-
-Use `list_endpoints` when you want filterable scrolling. Use `search_endpoints` when you have a text query.
+Use this when you want to scroll the catalogue. Use `search_endpoints` when you have a text query.
 
 ### `search_endpoints`
 
@@ -94,6 +92,17 @@ Fetch the full record for a single endpoint by URL: registry source, declared ch
 | Arg | Type | Required | Notes |
 |---|---|---|---|
 | `url` | string | yes | Full endpoint URL exactly as catalogued. |
+
+### `get_active_endpoints`
+
+Return the cohort of endpoints seen within the last N days, ordered by `last_seen` descending. Useful for tracking which endpoints in the catalogue are currently alive vs. stale.
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `window_days` | integer | 7 | 1–90. Endpoints with `last_seen >= now - window_days` are returned. |
+| `limit` | integer | 100 | 1–500. |
+
+Example: `get_active_endpoints({ window_days: 7 })` returns the most-recently-probed endpoints (cohort cap 100 per call).
 
 ---
 
