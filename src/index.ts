@@ -57,11 +57,14 @@ const TOOL_DEFINITIONS = [
   {
     name: "list_endpoints",
     description:
-      "Paginated browse over the catalogue. Returns endpoint records with " +
-      "URL, registry source, declared chain/network, HTTP probe status, " +
-      "first/last seen timestamps, and on-chain payment metadata where " +
-      "available. Use this when you want to scroll through the catalogue " +
-      "in registry order; use search_endpoints when you have a text query.",
+      "Paginated browse over the catalogue with optional filters. Returns " +
+      "endpoint records with URL, registry source, declared chain/network, " +
+      "HTTP probe status, first/last seen timestamps, the strict x402 v2 " +
+      "spec-validity flag (payment_required_valid), and on-chain payment " +
+      "metadata where available. Common patterns: filter by status=402 to " +
+      "narrow to paid endpoints; combine with spec_valid=1 to get only " +
+      "endpoints that emit a strict v2 schema body (11.5k of 13k as of the " +
+      "2026-05-19 sweep). Use search_endpoints instead when you have a text query.",
     inputSchema: {
       type: "object",
       properties: {
@@ -77,6 +80,34 @@ const TOOL_DEFINITIONS = [
           maximum: 100,
           default: 25,
           description: "Items per page (1-100, default 25).",
+        },
+        chain: {
+          type: "string",
+          description:
+            "Filter by declared chain or network — accepts both formats. " +
+            "Examples: 'eip155:8453' or 'Base' (Base mainnet), 'solana', " +
+            "'Lightning', 'Tempo', 'Base Sepolia'.",
+        },
+        source: {
+          type: "string",
+          description:
+            "Filter by registry source substring (LIKE-match). " +
+            "Examples: 'bazaar' (Coinbase Bazaar), '402index', 'x402scan', " +
+            "'apiosk-catalog', 'well-known-discovery'.",
+        },
+        status: {
+          type: "integer",
+          description:
+            "Filter by last HTTP probe status code. Common: 402 (paid), " +
+            "200 (alive landing), 404 (dead), 0 (probe timeout/error).",
+        },
+        spec_valid: {
+          type: "integer",
+          enum: [0, 1],
+          description:
+            "Filter by strict x402 v2 schema validity flag. 1 = body validates " +
+            "(accepts[] array with scheme + network + payTo + maxAmountRequired); " +
+            "0 = HTTP 402 returned but body is non-compliant.",
         },
       },
       additionalProperties: false,
@@ -136,7 +167,7 @@ const TOOL_DEFINITIONS = [
 const server = new Server(
   {
     name: "@tomsmart-ai/mapper-mcp",
-    version: "0.1.0",
+    version: "0.2.0",
   },
   {
     capabilities: {
@@ -223,9 +254,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     case "list_endpoints": {
       const page = (args?.page as number | undefined) ?? 1;
       const limit = (args?.limit as number | undefined) ?? 25;
-      const data = await callMapperApi(
-        `/v1/endpoints?page=${page}&limit=${limit}`
-      );
+      const chain = args?.chain as string | undefined;
+      const source = args?.source as string | undefined;
+      const status = args?.status as number | undefined;
+      const specValid = args?.spec_valid as number | undefined;
+      const qs = new URLSearchParams();
+      qs.set("page", String(page));
+      qs.set("limit", String(limit));
+      if (chain) qs.set("chain", chain);
+      if (source) qs.set("source", source);
+      if (status !== undefined) qs.set("status", String(status));
+      if (specValid !== undefined) qs.set("spec_valid", String(specValid));
+      const data = await callMapperApi(`/v1/endpoints?${qs.toString()}`);
       return {
         content: [
           { type: "text", text: JSON.stringify(data, null, 2) },
