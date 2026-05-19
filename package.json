@@ -1,0 +1,51 @@
+{
+  "name": "@tomsmart-ai/mapper-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the SmartFlow x402 endpoint catalogue. 58,800+ catalogued endpoints, queryable by URL, registry source, chain, status.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mapper-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "node --watch --loader ts-node/esm src/index.ts"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "x402",
+    "smartflow",
+    "ai-agents",
+    "discovery",
+    "base-mainnet",
+    "agent-economy"
+  ],
+  "author": "Tom Smart <smartflowpro.ai@gmail.com> (https://smartflowproai.com)",
+  "license": "MIT",
+  "homepage": "https://smartflowproai.com/catalog",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smartflowproai-lang/mapper-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/smartflowproai-lang/mapper-mcp/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
