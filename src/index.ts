@@ -11,6 +11,8 @@
  *   - search_endpoints         : text search over URL / source / category
  *   - get_endpoint_details     : single endpoint detail
  *   - get_active_endpoints     : endpoints seen within last N days (1-90)
+ *   - get_chain_breakdown      : catalogue segmentation by chain/network
+ *   - get_facilitator_breakdown: catalogue segmentation by registry/facilitator
  *
  * Auth
  *   Set SMARTFLOW_MAPPER_API_KEY in the environment. Free-tier keys are
@@ -202,12 +204,43 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_chain_breakdown",
+    description:
+      "Aggregate segmentation of the catalogue by declared chain/network. " +
+      "Returns one row per chain with: total endpoint count, count of " +
+      "endpoints currently returning HTTP 402 (paid + alive), and total " +
+      "observed on-chain USDC payment volume. Useful for buyer agents that " +
+      "need to size each chain's slice of the x402 economy before picking " +
+      "where to deploy. Sorted by count DESC.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_facilitator_breakdown",
+    description:
+      "Aggregate segmentation by registry/facilitator source — i.e. where " +
+      "each endpoint was discovered (402index, well-known-discovery, " +
+      "Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, " +
+      "etc.). NOTE: the catalogue tracks discovery source rather than the " +
+      "live payment facilitator URL; this is the closest available proxy. " +
+      "Returns count + total on-chain USDC volume per source, sorted by " +
+      "count DESC, capped at top 100.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 const server = new Server(
   {
     name: "@tomsmart-ai/mapper-mcp",
-    version: "0.3.0",
+    version: "0.4.0",
   },
   {
     capabilities: {
@@ -237,7 +270,7 @@ async function callMapperApi(path: string): Promise<unknown> {
     headers: {
       "X-API-Key": API_KEY,
       Accept: "application/json",
-      "User-Agent": "@tomsmart-ai/mapper-mcp/0.3.0",
+      "User-Agent": "@tomsmart-ai/mapper-mcp/0.4.0",
     },
   });
   const text = await res.text();
@@ -342,6 +375,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       const encoded = urlSafeBase64(url);
       const data = await callMapperApi(`/v1/endpoints/${encoded}`);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_chain_breakdown": {
+      const data = await callMapperApi("/v1/breakdown/chain");
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_facilitator_breakdown": {
+      const data = await callMapperApi("/v1/breakdown/facilitator");
       return {
         content: [
           { type: "text", text: JSON.stringify(data, null, 2) },

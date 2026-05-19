@@ -45,6 +45,22 @@ assert(
   "get_active_endpoints tool registered (v0.3.0)",
   /name: "get_active_endpoints"/.test(src)
 );
+assert(
+  "get_chain_breakdown tool registered (v0.4.0)",
+  /name: "get_chain_breakdown"/.test(src)
+);
+assert(
+  "get_facilitator_breakdown tool registered (v0.4.0)",
+  /name: "get_facilitator_breakdown"/.test(src)
+);
+assert(
+  "get_chain_breakdown calls /v1/breakdown/chain",
+  /callMapperApi\("\/v1\/breakdown\/chain"\)/.test(src)
+);
+assert(
+  "get_facilitator_breakdown calls /v1/breakdown/facilitator",
+  /callMapperApi\("\/v1\/breakdown\/facilitator"\)/.test(src)
+);
 
 // --- list_endpoints filter schema -------------------------------------------
 
@@ -94,8 +110,8 @@ assert(
 
 // --- version + UA bumped ----------------------------------------------------
 
-assert("server version bumped to 0.3.0", /version: "0\.3\.0"/.test(src));
-assert("User-Agent bumped to 0.3.0", /mapper-mcp\/0\.3\.0/.test(src));
+assert("server version bumped to 0.4.0", /version: "0\.4\.0"/.test(src));
+assert("User-Agent bumped to 0.4.0", /mapper-mcp\/0\.4\.0/.test(src));
 
 // --- summary ----------------------------------------------------------------
 

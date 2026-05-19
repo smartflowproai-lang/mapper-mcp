@@ -2,7 +2,12 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains five tools for discovering and inspecting paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains seven tools for discovering and inspecting paid x402 endpoints on the public internet.
+
+## What's new in v0.4.0
+
+- **New tool: `get_chain_breakdown`** — one row per declared chain/network with total count, count of endpoints currently returning HTTP 402, and total observed on-chain USDC volume. Lets a buyer agent size each chain's slice of the x402 economy in a single call.
+- **New tool: `get_facilitator_breakdown`** — segmentation by registry/facilitator source (402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, …) with count + on-chain USDC volume per source. The catalogue tracks discovery source rather than live payment facilitator URL — this is the closest available proxy.
 
 ## What's new in v0.3.0
 
@@ -103,6 +108,18 @@ Return the cohort of endpoints seen within the last N days, ordered by `last_see
 | `limit` | integer | 100 | 1–500. |
 
 Example: `get_active_endpoints({ window_days: 7 })` returns the most-recently-probed endpoints (cohort cap 100 per call).
+
+### `get_chain_breakdown`
+
+Aggregate segmentation of the catalogue by declared chain/network. One row per chain with total count, count of endpoints currently returning HTTP 402 (paid + alive), and total observed on-chain USDC volume. Sorted by count descending.
+
+No arguments. Use to size each chain's slice of the x402 economy in a single call.
+
+### `get_facilitator_breakdown`
+
+Segmentation by registry/facilitator source — where each endpoint was discovered (402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, …). Returns count + total on-chain USDC volume per source, sorted by count descending, capped at the top 100.
+
+No arguments. The catalogue tracks discovery source rather than live payment facilitator URL — this is the closest available proxy.
 
 ---
 
