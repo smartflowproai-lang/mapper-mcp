@@ -2,7 +2,12 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains four tools for discovering and inspecting paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains five tools for discovering and inspecting paid x402 endpoints on the public internet.
+
+## What's new in v0.3.0
+
+- **`list_endpoints` gains a `volume_gt` filter** — surface high-traffic endpoints by minimum observed on-chain USDC payment volume.
+- **New tool: `get_active_endpoints`** — return the cohort of endpoints seen within the last N days (1–90, default 7), ordered by `last_seen` descending. Use it to track which endpoints are currently alive vs. stale without scrolling the full catalogue.
 
 ---
 
@@ -61,6 +66,11 @@ Paginated browse over the catalogue in registry order. Returns endpoint records 
 |---|---|---|---|
 | `page` | integer | 1 | 1-indexed |
 | `limit` | integer | 25 | 1–100 |
+| `chain` | string | — | Filter by declared chain or network (e.g. `eip155:8453`, `Base`, `solana`). |
+| `source` | string | — | Substring match against registry source (e.g. `bazaar`, `x402scan`). |
+| `status` | integer | — | Last HTTP probe status (e.g. `402`, `200`, `404`). |
+| `spec_valid` | integer (0/1) | — | Strict x402 v2 schema validity flag. |
+| `volume_gt` | number | — | Endpoints with `on_chain_volume_usdc` strictly above the threshold (USDC float). |
 
 Use this when you want to scroll the catalogue. Use `search_endpoints` when you have a text query.
 
@@ -82,6 +92,17 @@ Fetch the full record for a single endpoint by URL: registry source, declared ch
 | Arg | Type | Required | Notes |
 |---|---|---|---|
 | `url` | string | yes | Full endpoint URL exactly as catalogued. |
+
+### `get_active_endpoints`
+
+Return the cohort of endpoints seen within the last N days, ordered by `last_seen` descending. Useful for tracking which endpoints in the catalogue are currently alive vs. stale.
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `window_days` | integer | 7 | 1–90. Endpoints with `last_seen >= now - window_days` are returned. |
+| `limit` | integer | 100 | 1–500. |
+
+Example: `get_active_endpoints({ window_days: 7 })` returns the most-recently-probed endpoints (cohort cap 100 per call).
 
 ---
 
