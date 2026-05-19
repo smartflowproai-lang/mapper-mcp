@@ -2,7 +2,13 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains seven tools for discovering and inspecting paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains eight tools for discovering and inspecting paid x402 endpoints on the public internet.
+
+## What's new in v0.5.0
+
+- **`get_facilitator_breakdown` now returns actual on-chain facilitator addresses.** The v0.4.0 implementation segmented the catalogue by `registry_source` (discovery channel proxy — 402index, Bazaar, etc.); v0.5.0 joins payments.db on `to_wallet = on_chain_wallet` and aggregates by `tx_sender → facilitators.address`. Each row exposes `facilitator_address`, `facilitator_label`, `tx_count`, `distinct_recipients`, and `total_volume_usdc`.
+- **New tool: `get_facilitator_source_breakdown`** — preserves the v0.4.0 registry_source proxy behaviour as a backwards-compatible alias. Use it when you want the discovery-channel segmentation; use `get_facilitator_breakdown` when you want actual facilitator wallets.
+- **Backend alias `/v1/breakdown/facilitator-source`** — same legacy proxy, exposed at a dedicated path so existing v0.4.0 integrations keep working.
 
 ## What's new in v0.4.0
 
