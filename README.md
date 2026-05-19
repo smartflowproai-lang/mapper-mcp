@@ -55,14 +55,26 @@ No arguments. Single call returns the catalogue snapshot as JSON.
 
 ### `list_endpoints`
 
-Paginated browse over the catalogue in registry order. Returns endpoint records with URL, registry source, declared chain/network, last HTTP probe status, first/last seen timestamps, and on-chain payment metadata where available.
+Paginated browse over the catalogue with optional filters. Returns endpoint records with URL, registry source, declared chain/network, last HTTP probe status, first/last seen timestamps, the strict x402 v2 spec-validity flag (`payment_required_valid`), and on-chain payment metadata where available.
 
 | Arg | Type | Default | Notes |
 |---|---|---|---|
 | `page` | integer | 1 | 1-indexed |
 | `limit` | integer | 25 | 1–100 |
+| `chain` | string | — | Filter by declared chain/network — accepts both formats. Examples: `Base`, `eip155:8453`, `solana`, `Lightning`, `Tempo`, `Base Sepolia`. |
+| `source` | string | — | Filter by registry source LIKE-match. Examples: `bazaar`, `402index`, `x402scan`, `apiosk-catalog`, `well-known-discovery`. |
+| `status` | integer | — | Filter by last HTTP probe status code. Common: `402` (paid), `200` (alive landing), `404` (dead), `0` (probe timeout/error). |
+| `spec_valid` | integer (0/1) | — | Filter by strict x402 v2 schema validity flag. `1` = body validates (accepts[] array with scheme + network + payTo + maxAmountRequired); `0` = HTTP 402 returned but body is non-compliant. |
 
-Use this when you want to scroll the catalogue. Use `search_endpoints` when you have a text query.
+**Cohort-signal example**:
+
+```js
+list_endpoints({ status: 402, spec_valid: 1, limit: 10 })
+```
+
+Returns the 11,505 endpoints (88% of the 13,064 status=402 cohort as of the 2026-05-19 schema sweep) that emit a strict v2 schema body. The other 1,522 (12%) return HTTP 402 but the body is non-compliant — generic paywall, buggy implementation, or custom non-x402 protocol.
+
+Use `list_endpoints` when you want filterable scrolling. Use `search_endpoints` when you have a text query.
 
 ### `search_endpoints`
 
