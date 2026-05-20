@@ -54,12 +54,24 @@ assert(
   /name: "get_facilitator_breakdown"/.test(src)
 );
 assert(
+  "get_facilitator_source_breakdown alias registered (v0.5.0)",
+  /name: "get_facilitator_source_breakdown"/.test(src)
+);
+assert(
   "get_chain_breakdown calls /v1/breakdown/chain",
   /callMapperApi\("\/v1\/breakdown\/chain"\)/.test(src)
 );
 assert(
   "get_facilitator_breakdown calls /v1/breakdown/facilitator",
   /callMapperApi\("\/v1\/breakdown\/facilitator"\)/.test(src)
+);
+assert(
+  "get_facilitator_source_breakdown calls /v1/breakdown/facilitator-source",
+  /callMapperApi\("\/v1\/breakdown\/facilitator-source"\)/.test(src)
+);
+assert(
+  "get_facilitator_breakdown description mentions payments.db join (v0.5.0)",
+  /payments\.db/.test(src) && /actual facilitator address aggregation/.test(src)
 );
 
 // --- list_endpoints filter schema -------------------------------------------
@@ -110,8 +122,8 @@ assert(
 
 // --- version + UA bumped ----------------------------------------------------
 
-assert("server version bumped to 0.4.0", /version: "0\.4\.0"/.test(src));
-assert("User-Agent bumped to 0.4.0", /mapper-mcp\/0\.4\.0/.test(src));
+assert("server version bumped to 0.5.0", /version: "0\.5\.0"/.test(src));
+assert("User-Agent bumped to 0.5.0", /mapper-mcp\/0\.5\.0/.test(src));
 
 // --- summary ----------------------------------------------------------------
 

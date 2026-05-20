@@ -12,7 +12,8 @@
  *   - get_endpoint_details     : single endpoint detail
  *   - get_active_endpoints     : endpoints seen within last N days (1-90)
  *   - get_chain_breakdown      : catalogue segmentation by chain/network
- *   - get_facilitator_breakdown: catalogue segmentation by registry/facilitator
+ *   - get_facilitator_breakdown: actual facilitator-address aggregation (v0.5.0+)
+ *   - get_facilitator_source_breakdown: legacy registry_source proxy (v0.4.0 alias)
  *
  * Auth
  *   Set SMARTFLOW_MAPPER_API_KEY in the environment. Free-tier keys are
@@ -222,13 +223,35 @@ const TOOL_DEFINITIONS = [
   {
     name: "get_facilitator_breakdown",
     description:
-      "Aggregate segmentation by registry/facilitator source — i.e. where " +
-      "each endpoint was discovered (402index, well-known-discovery, " +
-      "Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, " +
-      "etc.). NOTE: the catalogue tracks discovery source rather than the " +
-      "live payment facilitator URL; this is the closest available proxy. " +
-      "Returns count + total on-chain USDC volume per source, sorted by " +
-      "count DESC, capped at top 100.",
+      "v0.5.0+: returns actual facilitator address aggregation joined from " +
+      "payments.db. Each row is one facilitator wallet (tx_sender on USDC " +
+      "x402 transfers) with: facilitator_address, facilitator_label (from " +
+      "the on-chain labelled facilitators table when known, else 'unknown'), " +
+      "tx_count (distinct tx hashes), distinct_recipients (distinct mapper- " +
+      "catalogued endpoint wallets paid through this facilitator), and " +
+      "total_volume_usdc. Joins payments.payments → mapper.endpoints on " +
+      "to_wallet = on_chain_wallet (paid → catalogued endpoint), then " +
+      "left-joins payments.facilitators on tx_sender = address for labels. " +
+      "Top 100 by tx_count DESC. Supersedes the v0.4.0 registry_source proxy " +
+      "(now exposed as get_facilitator_source_breakdown).",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_facilitator_source_breakdown",
+    description:
+      "Legacy v0.4.0 behaviour preserved as backwards-compatible alias: " +
+      "aggregate segmentation by registry_source (discovery channel proxy — " +
+      "402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk- " +
+      "catalog, CDP Discord, direct crawl). This is NOT a facilitator wallet " +
+      "breakdown; it segments the catalogue by where each endpoint was " +
+      "discovered. Use get_facilitator_breakdown instead when you need the " +
+      "actual on-chain facilitator address aggregation. Returns count + " +
+      "total on-chain USDC volume per discovery source, sorted by count DESC, " +
+      "capped at top 100. May be deprecated in a future major release.",
     inputSchema: {
       type: "object",
       properties: {},
@@ -240,7 +263,7 @@ const TOOL_DEFINITIONS = [
 const server = new Server(
   {
     name: "@tomsmart-ai/mapper-mcp",
-    version: "0.4.0",
+    version: "0.5.0",
   },
   {
     capabilities: {
@@ -270,7 +293,7 @@ async function callMapperApi(path: string): Promise<unknown> {
     headers: {
       "X-API-Key": API_KEY,
       Accept: "application/json",
-      "User-Agent": "@tomsmart-ai/mapper-mcp/0.4.0",
+      "User-Agent": "@tomsmart-ai/mapper-mcp/0.5.0",
     },
   });
   const text = await res.text();
@@ -391,6 +414,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
     case "get_facilitator_breakdown": {
       const data = await callMapperApi("/v1/breakdown/facilitator");
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_facilitator_source_breakdown": {
+      const data = await callMapperApi("/v1/breakdown/facilitator-source");
       return {
         content: [
           { type: "text", text: JSON.stringify(data, null, 2) },

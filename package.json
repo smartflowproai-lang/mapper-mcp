@@ -1,7 +1,7 @@
 {
   "name": "@tomsmart-ai/mapper-mcp",
-  "version": "0.4.0",
-  "description": "MCP server for the SmartFlow x402 endpoint catalogue. 58,800+ catalogued endpoints (11,500+ strict-v2-valid as of May 2026), queryable by URL, registry source, chain, status, and spec-validity.",
+  "version": "0.5.0",
+  "description": "MCP server for the SmartFlow x402 endpoint catalogue. 58,800+ catalogued endpoints (11,500+ strict-v2-valid as of May 2026), queryable by URL, registry source, chain, status, spec-validity, and actual on-chain facilitator address (v0.5.0+).",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -9,7 +9,6 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node test/smoke.test.mjs",
     "prepare": "npm run build",
     "start": "node dist/index.js",
     "dev": "node --watch --loader ts-node/esm src/index.ts"
