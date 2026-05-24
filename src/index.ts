@@ -258,6 +258,30 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "risk_check",
+    description:
+      "Compute a risk score (0-100) for a single x402 endpoint. Evaluates five " +
+      "weighted factors: response shape consistency (25%), facilitator legitimacy " +
+      "(25%), endpoint age (15%), payment volume pattern (20%), and strict x402 v2 " +
+      "spec validity (15%). Lower score = lower risk. Returns per-factor breakdown " +
+      "with detail strings and an overall confidence level (high/medium/low) based " +
+      "on how many factors were assessable. Use this before routing payments to an " +
+      "unfamiliar endpoint.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description:
+            "Full endpoint URL to assess " +
+            "(e.g. 'https://x402.quickintel.io/v1/scan/full').",
+        },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 const server = new Server(
@@ -445,6 +469,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       const data = await callMapperApi(
         `/v1/endpoints/active?window_days=${windowDays}&limit=${limit}`
+      );
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "risk_check": {
+      const url = args?.url as string | undefined;
+      if (!url) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "risk_check requires a 'url' string."
+        );
+      }
+      const data = await callMapperApi(
+        `/v1/risk-check?url=${encodeURIComponent(url)}`
       );
       return {
         content: [

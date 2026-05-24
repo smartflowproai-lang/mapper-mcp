@@ -2,7 +2,7 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains eight tools for discovering and inspecting paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains nine tools for discovering, inspecting, and risk-assessing paid x402 endpoints on the public internet.
 
 ## What's new in v0.5.0
 
@@ -126,6 +126,28 @@ No arguments. Use to size each chain's slice of the x402 economy in a single cal
 Segmentation by registry/facilitator source — where each endpoint was discovered (402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, …). Returns count + total on-chain USDC volume per source, sorted by count descending, capped at the top 100.
 
 No arguments. The catalogue tracks discovery source rather than live payment facilitator URL — this is the closest available proxy.
+
+### `risk_check`
+
+Compute a risk score (0–100) for a single endpoint. Evaluates five weighted factors:
+
+| Factor | Weight | What it measures |
+|---|---|---|
+| Response shape consistency | 25% | Does the endpoint have a known, commonly-shared response shape hash? |
+| Facilitator legitimacy | 25% | Is the endpoint paid through a labelled facilitator (e.g. Coinbase CDP)? |
+| Endpoint age | 15% | How long has it been in the catalogue? |
+| Payment volume | 20% | Does it have meaningful on-chain payment history? |
+| Spec validity | 15% | Does it pass strict x402 v2 schema validation? |
+
+Lower score = lower risk. Returns per-factor breakdown with detail strings and an overall confidence level (`high`/`medium`/`low`).
+
+| Arg | Type | Required | Notes |
+|---|---|---|---|
+| `url` | string | yes | Full endpoint URL to assess. |
+
+Example: `risk_check({ url: "https://x402.aubr.ai/api/chat" })` → `{ risk_score: 45, confidence: "high", risk_factors: [...] }`.
+
+Use before routing payments to an unfamiliar endpoint.
 
 ---
 
