@@ -6,18 +6,24 @@
  * (https://smartflowproai.com/catalog) over the Model Context Protocol.
  *
  * Tools
- *   - get_catalog_stats        : aggregate counts (total, by registry source)
- *   - list_endpoints           : paginated catalogue browse with optional filters
- *   - search_endpoints         : text search over URL / source / category
- *   - get_endpoint_details     : single endpoint detail
- *   - get_active_endpoints     : endpoints seen within last N days (1-90)
- *   - get_chain_breakdown      : catalogue segmentation by chain/network
- *   - get_facilitator_breakdown: actual facilitator-address aggregation (v0.5.0+)
+ *   - get_catalog_stats              : aggregate counts (total, by registry source)
+ *   - list_endpoints                 : paginated catalogue browse with optional filters
+ *   - search_endpoints               : text search over URL / source / category
+ *   - get_endpoint_details           : single endpoint detail
+ *   - get_active_endpoints           : endpoints seen within last N days (1-90)
+ *   - get_chain_breakdown            : catalogue segmentation by chain/network
+ *   - get_facilitator_breakdown      : actual facilitator-address aggregation (v0.5.0+)
  *   - get_facilitator_source_breakdown: legacy registry_source proxy (v0.4.0 alias)
+ *   - risk_check                     : per-endpoint 0-100 risk score (v0.5.0+)
+ *   - get_endpoint_lifecycle         : timeline + status transitions + zombie state (v0.6.0+)
+ *   - get_facilitator_evolution      : registry growth + validity trends over time (v0.6.0+)
+ *   - get_cohort_survival            : cohort tracking with status snapshot (v0.6.0+)
  *
  * Auth
  *   Set SMARTFLOW_MAPPER_API_KEY in the environment. Free-tier keys are
  *   issued at https://smartflowproai.com/catalog#access (100 req/day).
+ *   Pro tier ($19/mo, 10k req/day) and Pro+ tier ($49/mo, 100k req/day) unlock
+ *   real-time lifecycle queries, longer time windows, and cohort group_by.
  *
  * Optional
  *   SMARTFLOW_MAPPER_BASE_URL  override base URL (default
@@ -282,12 +288,142 @@ const TOOL_DEFINITIONS = [
       additionalProperties: false,
     },
   },
+  {
+    name: "get_endpoint_lifecycle",
+    description:
+      "v0.6.0+: timeline for a single endpoint including status transitions, " +
+      "performance trends, zombie-state flag, and registry-source attribution " +
+      "history. Returns first_seen, last_seen, age_days, current_status, " +
+      "consecutive_fails, status_transitions array (with timestamp + from/to " +
+      "HTTP codes), and p50/p99 response time. Zombie state = status=402 + " +
+      "consecutive_fails >= 25. Free tier: 14-day delayed transitions only. " +
+      "Pro tier: real-time. Use this for endpoint forensics: 'when did this " +
+      "endpoint last work', 'is it actually paying or stuck', 'has the " +
+      "facilitator changed'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          format: "uri",
+          description: "Full canonical endpoint URL.",
+        },
+        resolution: {
+          type: "string",
+          enum: ["hourly", "daily"],
+          default: "daily",
+          description:
+            "Time resolution for status_transitions and performance series. " +
+            "'hourly' is Pro-only and limited to last 7 days. 'daily' (default) " +
+            "is available on all tiers within the tier's retention window.",
+        },
+        max_events: {
+          type: "integer",
+          minimum: 1,
+          maximum: 500,
+          default: 100,
+          description: "Maximum status_transitions events to return (1-500, default 100).",
+        },
+      },
+      required: ["url"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_facilitator_evolution",
+    description:
+      "v0.6.0+: registry-source catalogue growth and spec-validity trends " +
+      "over time. Returns time series segmented by registry_source (402index, " +
+      "Coinbase Bazaar, apiosk-catalog, x402scan, etc.) with per-period " +
+      "endpoint counts, strict_v2 valid counts, dead/zombie counts, and a " +
+      "summary block highlighting the fastest-growing source + highest- " +
+      "validity source for the window. Use this to spot 'which registry " +
+      "added the most endpoints this month' or 'is Coinbase Bazaar's " +
+      "strict-v2 validity rate dropping'. Free tier: last 30 days, weekly " +
+      "resolution. Pro tier: up to 1 year, daily resolution.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        start_date: {
+          type: "string",
+          format: "date",
+          description:
+            "ISO 8601 date (YYYY-MM-DD). Default: 30 days before end_date.",
+        },
+        end_date: {
+          type: "string",
+          format: "date",
+          description:
+            "ISO 8601 date (YYYY-MM-DD). Default: today.",
+        },
+        resolution: {
+          type: "string",
+          enum: ["daily", "weekly"],
+          default: "weekly",
+          description:
+            "Time bucket resolution. 'daily' is Pro-only. 'weekly' (default) " +
+            "is available on all tiers.",
+        },
+        registry_sources: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Optional filter to specific sources (e.g. ['402index','bazaar']). " +
+            "Default: all known sources.",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "get_cohort_survival",
+    description:
+      "v0.6.0+: cohort tracking. Given a date range, returns the cohort of " +
+      "endpoints whose first_seen falls in that range, then reports their " +
+      "status at the snapshot_date: how many still return 402 vs. 404 vs. " +
+      "zombie vs. spec-valid. Optional group_by (provider / registry_source / " +
+      "chain) breaks the cohort into sub-cohorts. Use this to answer 'how " +
+      "many endpoints registered in April are still alive in June', or 'is " +
+      "the cohort registered via Bazaar surviving better than the 402index " +
+      "cohort'. Free tier: cohorts must be >= 30 days old. Pro tier: any " +
+      "cohort age + group_by filter.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        cohort_start: {
+          type: "string",
+          format: "date",
+          description: "ISO 8601 date — first_seen >= cohort_start.",
+        },
+        cohort_end: {
+          type: "string",
+          format: "date",
+          description: "ISO 8601 date — first_seen <= cohort_end.",
+        },
+        snapshot_date: {
+          type: "string",
+          format: "date",
+          description:
+            "ISO 8601 date — point-in-time to evaluate cohort status. Default: today.",
+        },
+        group_by: {
+          type: "string",
+          enum: ["provider", "registry_source", "chain"],
+          description:
+            "Optional sub-cohort grouping (Pro tier only). Without group_by, " +
+            "returns a single aggregate status_at_snapshot block.",
+        },
+      },
+      required: ["cohort_start", "cohort_end"],
+      additionalProperties: false,
+    },
+  },
 ] as const;
 
 const server = new Server(
   {
     name: "@tomsmart-ai/mapper-mcp",
-    version: "0.5.0",
+    version: "0.6.0",
   },
   {
     capabilities: {
@@ -317,7 +453,7 @@ async function callMapperApi(path: string): Promise<unknown> {
     headers: {
       "X-API-Key": API_KEY,
       Accept: "application/json",
-      "User-Agent": "@tomsmart-ai/mapper-mcp/0.5.0",
+      "User-Agent": "@tomsmart-ai/mapper-mcp/0.6.0",
     },
   });
   const text = await res.text();
@@ -334,6 +470,13 @@ async function callMapperApi(path: string): Promise<unknown> {
       throw new McpError(
         ErrorCode.InvalidRequest,
         `mapper-api auth rejected: ${detail}. Verify SMARTFLOW_MAPPER_API_KEY.`
+      );
+    }
+    if (res.status === 403) {
+      throw new McpError(
+        ErrorCode.InvalidRequest,
+        `mapper-api tier-gated: ${detail}. This feature requires Pro or Pro+ ` +
+          "tier. Upgrade at https://smartflowproai.com/catalog#tiers."
       );
     }
     if (res.status === 429) {
@@ -487,6 +630,100 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const data = await callMapperApi(
         `/v1/risk-check?url=${encodeURIComponent(url)}`
       );
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_endpoint_lifecycle": {
+      const url = args?.url as string | undefined;
+      const resolution = (args?.resolution as string | undefined) ?? "daily";
+      const maxEvents = (args?.max_events as number | undefined) ?? 100;
+      if (!url) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_endpoint_lifecycle requires a 'url' string."
+        );
+      }
+      if (resolution !== "hourly" && resolution !== "daily") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_endpoint_lifecycle: resolution must be 'hourly' or 'daily'."
+        );
+      }
+      if (maxEvents < 1 || maxEvents > 500) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_endpoint_lifecycle: max_events must be between 1 and 500."
+        );
+      }
+      const qs = new URLSearchParams();
+      qs.set("url", url);
+      qs.set("resolution", resolution);
+      qs.set("max_events", String(maxEvents));
+      const data = await callMapperApi(`/v1/endpoints/lifecycle?${qs.toString()}`);
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_facilitator_evolution": {
+      const startDate = args?.start_date as string | undefined;
+      const endDate = args?.end_date as string | undefined;
+      const resolution = (args?.resolution as string | undefined) ?? "weekly";
+      const registrySources = args?.registry_sources as string[] | undefined;
+      if (resolution !== "daily" && resolution !== "weekly") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_facilitator_evolution: resolution must be 'daily' or 'weekly'."
+        );
+      }
+      const qs = new URLSearchParams();
+      if (startDate) qs.set("start_date", startDate);
+      if (endDate) qs.set("end_date", endDate);
+      qs.set("resolution", resolution);
+      if (registrySources && registrySources.length > 0) {
+        qs.set("registry_sources", registrySources.join(","));
+      }
+      const data = await callMapperApi(
+        `/v1/breakdown/facilitator-evolution?${qs.toString()}`
+      );
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(data, null, 2) },
+        ],
+      };
+    }
+    case "get_cohort_survival": {
+      const cohortStart = args?.cohort_start as string | undefined;
+      const cohortEnd = args?.cohort_end as string | undefined;
+      const snapshotDate = args?.snapshot_date as string | undefined;
+      const groupBy = args?.group_by as string | undefined;
+      if (!cohortStart || !cohortEnd) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_cohort_survival requires 'cohort_start' and 'cohort_end' ISO dates."
+        );
+      }
+      if (
+        groupBy !== undefined &&
+        groupBy !== "provider" &&
+        groupBy !== "registry_source" &&
+        groupBy !== "chain"
+      ) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "get_cohort_survival: group_by must be 'provider', 'registry_source', or 'chain'."
+        );
+      }
+      const qs = new URLSearchParams();
+      qs.set("cohort_start", cohortStart);
+      qs.set("cohort_end", cohortEnd);
+      if (snapshotDate) qs.set("snapshot_date", snapshotDate);
+      if (groupBy) qs.set("group_by", groupBy);
+      const data = await callMapperApi(`/v1/cohort-survival?${qs.toString()}`);
       return {
         content: [
           { type: "text", text: JSON.stringify(data, null, 2) },
