@@ -2,7 +2,17 @@
 
 > MCP server exposing the **SmartFlow x402 endpoint catalogue** to LLM agents — 58,800+ endpoints across Base, Solana, Lightning, Tempo, and other chains, sourced from Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registry, and direct crawl.
 
-Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains nine tools for discovering, inspecting, and risk-assessing paid x402 endpoints on the public internet.
+Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains twelve tools for discovering, inspecting, and risk-assessing paid x402 endpoints on the public internet.
+
+## What's new in v0.6.0
+
+Three new tools turn the mapper from a snapshot of *what exists now* into a query surface for *how endpoints got here over time*.
+
+- **New tool: `get_endpoint_lifecycle`** — timeline for a single endpoint. Returns first_seen, last_seen, status transitions over time (every change in HTTP status code), zombie-state flag (status=402 with ≥25 consecutive_fails), performance percentiles (p50/p99 response time), and registry-source attribution history. Free tier returns transitions older than 14 days; Pro tier returns real-time history. Use this for endpoint forensics: "when did this last work", "is this paying or stuck", "has the facilitator changed".
+- **New tool: `get_facilitator_evolution`** — registry-source catalogue growth and spec-validity trends over time. Returns a time-bucketed series segmented by registry_source (402index, Coinbase Bazaar, apiosk-catalog, x402scan, etc.) with per-period endpoint count, strict_v2_valid count, dead/zombie counts, plus a summary block highlighting the fastest-growing source and highest-validity source for the window. Free tier: last 30 days at weekly resolution. Pro tier: up to 1 year at daily resolution.
+- **New tool: `get_cohort_survival`** — cohort tracking. Given a date range (`cohort_start`, `cohort_end`), returns the cohort of endpoints whose `first_seen` falls in that range, then reports their status at `snapshot_date`: how many still return 402 vs. 404 vs. zombie vs. spec-valid, with optional `group_by` (provider / registry_source / chain) for sub-cohort breakdowns. Free tier requires cohorts ≥30 days old; Pro tier accepts any age + `group_by`.
+
+History queries require `scan_log` data accumulating from the v0.6 deploy date (no pre-v0.6 backfill). Lifecycle queries on endpoints that pre-date v0.6 deploy return current state + an empty `status_transitions` array for the historical period. Cohort and evolution queries work immediately because they query the existing `endpoints.first_seen` column which has full historical data.
 
 ## What's new in v0.5.0
 
@@ -123,9 +133,15 @@ No arguments. Use to size each chain's slice of the x402 economy in a single cal
 
 ### `get_facilitator_breakdown`
 
-Segmentation by registry/facilitator source — where each endpoint was discovered (402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, …). Returns count + total on-chain USDC volume per source, sorted by count descending, capped at the top 100.
+Actual on-chain facilitator-address aggregation (added v0.5.0). Joins `payments.db` on `to_wallet = on_chain_wallet` and aggregates by `tx_sender → facilitators.address`. Each row exposes `facilitator_address`, `facilitator_label`, `tx_count`, `distinct_recipients`, and `total_volume_usdc`. Sorted by `tx_count` descending.
 
-No arguments. The catalogue tracks discovery source rather than live payment facilitator URL — this is the closest available proxy.
+No arguments. Use when you want actual facilitator wallets behind observed payment activity.
+
+### `get_facilitator_source_breakdown`
+
+Backwards-compatible alias for the v0.4.0 registry-source segmentation behaviour. Returns count + total on-chain USDC volume per registry source (402index, well-known-discovery, Coinbase Bazaar, x402scan, apiosk-catalog, CDP Discord, direct crawl, …). Sorted by count descending, capped at the top 100.
+
+No arguments. Use when you want discovery-channel segmentation rather than actual facilitator wallets.
 
 ### `risk_check`
 
@@ -148,6 +164,50 @@ Lower score = lower risk. Returns per-factor breakdown with detail strings and a
 Example: `risk_check({ url: "https://x402.aubr.ai/api/chat" })` → `{ risk_score: 45, confidence: "high", risk_factors: [...] }`.
 
 Use before routing payments to an unfamiliar endpoint.
+
+### `get_endpoint_lifecycle`
+
+Timeline for a single endpoint including status transitions, zombie-state flag, performance trends, and registry attribution. Use this for endpoint forensics: "when did this endpoint last actually work", "has the facilitator changed", "is this stuck in zombie 402 state".
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `url` | string | — | Required. Full canonical endpoint URL. |
+| `resolution` | string | `daily` | `daily` (free + Pro) or `hourly` (Pro only, last 7 days). |
+| `max_events` | integer | 100 | Max status_transitions events to return (1–500). |
+
+Returns: first_seen, last_seen, age_days, current_status, current_strict_v2_valid, registry_sources[], status_transitions[], zombie_state, consecutive_fails, performance_p50_ms, performance_p99_ms, events[].
+
+Free tier returns transitions older than 14 days only. Pro tier returns real-time history.
+
+### `get_facilitator_evolution`
+
+Registry-source catalogue growth and spec-validity trends over time. Use this to spot "which registry added the most endpoints this month" or "is Coinbase Bazaar's strict-v2 validity rate dropping".
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `start_date` | string | 30 days before end_date | ISO 8601 date (YYYY-MM-DD). |
+| `end_date` | string | today | ISO 8601 date. |
+| `resolution` | string | `weekly` | `weekly` (all tiers) or `daily` (Pro only). |
+| `registry_sources` | string[] | all | Optional filter to specific sources. |
+
+Returns: series[] (per-period rows with by_source breakdown + totals), summary {total_growth, fastest_growing_source, highest_validity_source}.
+
+Free tier: max 30-day window, weekly resolution. Pro: up to 1 year, daily resolution.
+
+### `get_cohort_survival`
+
+Track cohort of endpoints registered in a date range. Survival snapshot, mortality breakdown, optional sub-cohort breakdowns. Use this to answer "how many endpoints registered in April are still alive in June", or "is the cohort registered via Bazaar surviving better than the 402index cohort".
+
+| Arg | Type | Default | Notes |
+|---|---|---|---|
+| `cohort_start` | string | — | Required. ISO 8601 date. first_seen >= cohort_start. |
+| `cohort_end` | string | — | Required. ISO 8601 date. first_seen <= cohort_end. |
+| `snapshot_date` | string | today | ISO 8601 date. |
+| `group_by` | string | — | `provider`, `registry_source`, or `chain` (Pro only). |
+
+Returns: cohort_size, age_days_min, age_days_max, status_at_snapshot {answers_402, dead_404, strict_v2_valid, zombie, other}, percentages {...}, optional breakdown_by_group[].
+
+Free tier requires cohorts ≥30 days old. Pro tier accepts any cohort age + group_by filter.
 
 ---
 
@@ -172,7 +232,8 @@ Methodology, daily refresh schedule (04:00 UTC), and known gaps are documented a
 ## Tiers
 
 - **Free** — 100 requests/day, no wallet required. Register at the catalogue page.
-- **Pro / Enterprise** — higher quotas + priority probe refresh + optional pre-publish drift alerts. Tier mechanics gated by a Hypersub subscription on Base; details on the catalogue page.
+- **Pro** — $19/mo, 10,000 requests/day, unlocks real-time lifecycle history, daily-resolution evolution, recent cohorts (under 30 days), and `group_by` cohort breakdowns. NFT-gated mint via Hypersub on Base: https://hypersub.xyz/s/smartflow-mapper-pro
+- **Pro+** — $49/mo, 100,000 requests/day, all Pro features + priority probe refresh + optional pre-publish drift alerts.
 
 ---
 
