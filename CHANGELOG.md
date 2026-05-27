@@ -4,6 +4,33 @@ All notable changes to `@tomsmart-ai/mapper-mcp` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] — 2026-05-27 (hotfix)
+
+### Fixed
+
+- **strict-v2 parser was checking v1 schema only.** `sweep_validate_and_backfill.py` required `maxAmountRequired` as a required field per accept item. Per [@x402/core@2.11.0 `PaymentRequirementsV2Schema`](https://www.npmjs.com/package/@x402/core) (and `schemas/index.d.mts:315-389` cited in #2207 by @ethanoroshiba, cross-confirmed by @fardinvahdat in x402trace v0.3.2 `decoder/parse.ts:113-125`), v2 uses `amount` (not `maxAmountRequired`). Parser now accepts BOTH `maxAmountRequired` (v1) OR `amount` (v2) per accept item. Smoke test passes v1, v2, and missing-both cases.
+- **POST-only x402 endpoints were never validated.** `fetch_and_validate` only tried GET against common probe paths (`/.well-known/x402`, `/`, `/x402`, `/api/x402`). POST-only endpoints (e.g. TerraDeed `/scrape`, Munition `/v1/uploads`) returning 402 only via POST never reached the parser regardless of payload validity. Added POST fallback against same canonical paths plus common POST-only paths (`/scrape`, `/v1/uploads`, `/api/scrape`) after GET probes exhausted.
+
+### Empirical impact
+
+Full re-sweep against live mapper.db Wed 2026-05-27 ~05:26-05:37 UTC:
+
+- **Pre-fix strict-v2 valid count: 11,504** (vs total `status=402`: 13,045)
+- **Post-fix strict-v2 valid count: 11,877** (+373 endpoints, +3.24% drift)
+- 401 of the 401-endpoint sample query that flagged `accept_0_missing:maxAmountRequired` now correctly validate as `valid_v2`.
+
+Second sweep (POST fallback enabled, targeting endpoints never returned 402 via GET) pending — expected to surface additional POST-only endpoint count once complete.
+
+### Affects external claims
+
+WI #7 / #8 / #9 strict-v2 valid figures cited at 11,504-11,549 should be read as the pre-fix v1-only schema floor. The 11,877 number (post-v2 fix, pre-POST-fallback) is the corrected baseline.
+
+### Credit
+
+Schema correction surfaced by @poteshniy in Discord cross-thread; technical anchor (canonical PaymentRequirementsV2Schema reference + x402trace decoder pattern) provided by @fardinvahdat. Issue #2207 by @ethanoroshiba.
+
+---
+
 ## [0.6.0] — 2026-06-14
 
 ### Added
