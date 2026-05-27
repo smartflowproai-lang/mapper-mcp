@@ -19,11 +19,16 @@ Full re-sweep against live mapper.db Wed 2026-05-27 ~05:26-05:37 UTC:
 - **Post-fix strict-v2 valid count: 11,877** (+373 endpoints, +3.24% drift)
 - 401 of the 401-endpoint sample query that flagged `accept_0_missing:maxAmountRequired` now correctly validate as `valid_v2`.
 
-Second sweep (POST fallback enabled, targeting endpoints never returned 402 via GET) pending — expected to surface additional POST-only endpoint count once complete.
+Second sweep (POST fallback enabled, targeting endpoints never returned 402 via GET) completed Wed 2026-05-27 ~09:00 UTC:
+
+- **Post-POST-fallback strict-v2 valid count: 12,075** (+198 endpoints, +1.67% drift from 11,877)
+- **Cumulative v0.6.1 impact: +571 endpoints (+4.96%) from pre-fix 11,504 floor**
+- Total `status=402` denominator grew 13,045 → 13,382 (crawler ingest delta during sweep window); strict-v2 valid ratio 88.2% → 90.2%
+- POST-only endpoints surfaced primarily from TerraDeed `/scrape`-class + Munition `/v1/uploads`-class shapes (consistent with parser fix targets)
 
 ### Affects external claims
 
-WI #7 / #8 / #9 strict-v2 valid figures cited at 11,504-11,549 should be read as the pre-fix v1-only schema floor. The 11,877 number (post-v2 fix, pre-POST-fallback) is the corrected baseline.
+WI #7 / #8 / #9 strict-v2 valid figures cited at 11,504-11,549 should be read as the pre-fix v1-only schema floor. The 12,075 number (post both v2-schema fix and POST-fallback, Wed 2026-05-27 ~09:00 UTC) is the final corrected baseline for v0.6.1.
 
 ### Credit
 
