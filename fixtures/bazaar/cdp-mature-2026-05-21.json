@@ -3,8 +3,8 @@
   "version": "v2",
   "source": "smartflowproai mapper.db (x402-network-mapper)",
   "generated_at": "2026-05-22T10:44:11Z",
-  "generated_for": "Fardin x402trace v0.3.2 fixture freeze (gates on Sun morning drop per Discord 22:57 CEST Czw 21.05)",
-  "description": "x402 endpoint fixture for x402trace regression + cross-validation testing. v2 schema upgrade per Fardin v0.3.2 plan: challenge-parse coverage + facilitator-claim cross-validation (manifest vs runtime-inferred) + settlement-truth.",
+  "generated_for": "x402trace v0.3.2 fixture freeze (regression + cross-validation)",
+  "description": "x402 endpoint fixture for x402trace regression + cross-validation testing. v2 schema upgrade: challenge-parse coverage + facilitator-claim cross-validation (manifest vs runtime-inferred) + settlement-truth.",
   "schema_axes": {
     "challenge-parse": "response_shape_hash (sha256:16-char from raw 402 body) — detects manifest/runtime drift",
     "facilitator-claim": "facilitator_inferred (from response body payTo OR provider_inferred OR registry_source) — cross-validates against on_chain_wallet",
