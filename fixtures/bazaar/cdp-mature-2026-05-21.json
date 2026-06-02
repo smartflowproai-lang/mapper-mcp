@@ -6,14 +6,14 @@
   "generated_for": "Fardin x402trace v0.3.2 fixture freeze (gates on Sun morning drop per Discord 22:57 CEST Czw 21.05)",
   "description": "x402 endpoint fixture for x402trace regression + cross-validation testing. v2 schema upgrade per Fardin v0.3.2 plan: challenge-parse coverage + facilitator-claim cross-validation (manifest vs runtime-inferred) + settlement-truth.",
   "schema_axes": {
-    "challenge-parse": "response_shape_hash (sha256:16-char from raw 402 body) \u2014 detects manifest/runtime drift",
-    "facilitator-claim": "facilitator_inferred (from response body payTo OR provider_inferred OR registry_source) \u2014 cross-validates against on_chain_wallet",
-    "settlement-truth": "on_chain_wallet + on_chain_payments + on_chain_volume_usdc \u2014 actual payment infrastructure verified"
+    "challenge-parse": "response_shape_hash (sha256:16-char from raw 402 body) — detects manifest/runtime drift",
+    "facilitator-claim": "facilitator_inferred (from response body payTo OR provider_inferred OR registry_source) — cross-validates against on_chain_wallet",
+    "settlement-truth": "on_chain_wallet + on_chain_payments + on_chain_volume_usdc — actual payment infrastructure verified"
   },
   "categories": {
-    "challenge-parse-coverage": "Partner endpoints (terradeed/munition/apiosk) live-probed for fresh 402 body \u2014 primary target for v0.3.2 parser validation",
-    "spec-valid-with-volume": "TOP 10 endpoints by on_chain_volume_usdc, payment_required_valid=1, on_chain_payments>0 \u2014 diversity cross-section",
-    "implementation-issue-stress-test": "status=402 but payment_required_valid=0 \u2014 challenge-parse should classify as implementation_issue"
+    "challenge-parse-coverage": "Partner endpoints (terradeed/munition/apiosk) live-probed for fresh 402 body — primary target for v0.3.2 parser validation",
+    "spec-valid-with-volume": "TOP 10 endpoints by on_chain_volume_usdc, payment_required_valid=1, on_chain_payments>0 — diversity cross-section",
+    "implementation-issue-stress-test": "status=402 but payment_required_valid=0 — challenge-parse should classify as implementation_issue"
   },
   "fixture_count": 17,
   "breakdown": {
@@ -427,12 +427,5 @@
       "category": "implementation-issue-stress-test",
       "_stress_purpose": "challenge-parse should classify as implementation_issue (HTTP 402 but body lacks accepts array per strict v2)"
     }
-  ],
-  "use_notes": {
-    "fardin_fixture_path_canonical": "tests/fixtures/bazaar/multi-rail/cdp-mature-2026-05-22.json",
-    "discord_drop_channel": "#show-and-tell or DM (Tom-side decision Sat/Sun)",
-    "delivery_window": "Sun 24.05.2026 morning CEST",
-    "license": "MIT (consistent with mapper-mcp repo)",
-    "live_probe_note": "Partner endpoints live-probed at Pt 22.05.2026 ~12:45 PL. response_shape_hash + has_accepts captured fresh. Endpoint state may drift before Sun drop \u2014 recommend Fardin re-probe at fixture-load time for live runtime validation."
-  }
+  ]
 }
