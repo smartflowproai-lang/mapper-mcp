@@ -28,7 +28,7 @@ Drop this server into your Claude Code / Cursor / MCP-aware agent and it gains e
 npm install -g @tomsmart-ai/mapper-mcp
 ```
 
-Get a free API key (100 requests/day) at **https://smartflowproai.com/catalog#access**.
+Get a free API key (100 requests/day) by emailing **info@smartflowproai.com**.
 
 Set the key in your environment:
 
@@ -143,7 +143,7 @@ The agent will typically chain `list_endpoints` (or `search_endpoints` with `q="
 
 The SmartFlow Mapper catalogue is a passive crawl of the public x402 surface — it lists every endpoint observed across Coinbase Bazaar, 402index, x402scan, apiosk, ERC-8004 registries, `/.well-known/x402` manifests on hosts seeded from those registries, and direct on-chain payment-receiver wallet expansion. The catalogue does **not** itself execute or pay against endpoints; it is a discovery index for agents and tooling.
 
-Methodology, daily refresh schedule (04:00 UTC), and known gaps are documented at **https://smartflowproai.com/methodology/mycelia-widget**. Numbers in this README track the published catalogue snapshot and may drift between releases.
+Methodology, daily refresh schedule (04:00 UTC), and known gaps are documented in the public methodology repository: **https://github.com/smartflowproai-lang/smartflow-observatory-methodology**. Numbers in this README track the published catalogue snapshot and may drift between releases.
 
 ---
 
@@ -159,6 +159,6 @@ Methodology, daily refresh schedule (04:00 UTC), and known gaps are documented a
 - Source: https://github.com/smartflowproai-lang/mapper-mcp
 - License: MIT
 - Operator: Tom Smart (@TomSmart_ai)
-- Catalogue: https://smartflowproai.com/catalog
+- Catalogue API: https://api.smartflowproai.com/docs
 
 Issues, feature requests, and pull requests welcome. If you spot a bug or a missing tool, open an issue on the GitHub repo.
